@@ -1,10 +1,10 @@
 # Patentflow v5
 
-Simple web app to paste a list of patent identifiers (messy is fine: commas, spaces, "US", kind codes like B2, etc.) and download a ZIP of the PDFs.
+Paste patent numbers (messy is fine) and download PDFs as a bundle.
+See backend/src/index.mjs for server code, frontend/src/App.jsx for UI.
 
-## Quick Start
-
+Commands:
 ```bash
-# from repo root
 npm i
 npm run dev
+```

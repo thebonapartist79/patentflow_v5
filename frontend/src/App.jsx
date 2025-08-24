@@ -1,0 +1,2 @@
+import { useState } from 'react';
+export default function App(){const [text,setText]=useState('');return(<div><h1>Patentflow v5</h1><textarea value={text} onChange={e=>setText(e.target.value)} /><button>Download</button></div>);}
