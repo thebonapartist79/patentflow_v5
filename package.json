@@ -1,0 +1,18 @@
+{
+  "name": "patentflow_v5",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "npm --prefix backend i && npm --prefix frontend i",
+    "dev": "npm-run-all2 -p dev:*",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm-run-all2 -s build:*",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "start": "npm --prefix backend run start"
+  },
+  "devDependencies": {
+    "npm-run-all2": "^6.2.1"
+  }
+}
