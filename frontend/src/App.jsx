@@ -1,4 +1,5 @@
   import { useState } from 'react';
+  import './App.css';
 
   export default function App() {
     const [text, setText] = useState('');
@@ -43,7 +44,7 @@
     return (
       <div style={{ maxWidth: 820, margin: '6vh auto 0', lineHeight: 1.45 }}>
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <h1 style={{ margin: 0 }}>Patentflow v5</h1>
+          <h1 style={{ margin: 0 }}>PatentFlow</h1>
           <div>
             <button style={{ marginRight: 8 }}>Subscribe</button>
             <button>Invalidity Assistant</button>
@@ -62,10 +63,11 @@
 11378015
 10,859,001
 11,162,431"
+          className = "patent-textarea"
           style={{ width: '100%', padding: 12, fontFamily: 'monospace', fontSize: 14 }}
         />
 
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 12, textAlign: 'center' }}>
           <button onClick={handleDownload} disabled={busy}>
             {busy ? 'Working…' : 'Download Bundle'}
           </button>
