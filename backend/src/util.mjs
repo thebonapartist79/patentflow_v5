@@ -1,22 +1,25 @@
-// Utilities for input parsing and normalization
+// backend/src/util.mjs
 
-/**
- * Extracts candidate tokens from free-form input.
- * Accepts commas, spaces, newlines, hyphens, "US" prefix, kind codes, etc.
- * Returns unique, truthy tokens preserving original order.
- */
 export function extractPatentTokens(text) {
   if (!text) return [];
-  // Remove 'US' prefixes to avoid duplication; we'll add US later as needed
-  const raw = text
-    .replace(/\bUS\b/gi, ' ')
+
+  let cleanedText = String(text).replace(/\r\n?/g, '\n');
+
+  // remove commas and hyphens INSIDE numbers
+  cleanedText = cleanedText.replace(/[,-]+/g, '');
+
+  // drop lone "US" tokens (we add it later anyway)
+  cleanedText = cleanedText.replace(/\bUS\b/gi, ' ');
+
+  // now split on whitespace / non-alphanumerics
+  const pieces = cleanedText
     .split(/[^0-9A-Za-z]+/g)
     .map(s => s.trim())
     .filter(Boolean);
 
   const seen = new Set();
   const out = [];
-  for (const t of raw) {
+  for (const t of pieces) {
     const norm = t.toUpperCase();
     if (!seen.has(norm)) {
       seen.add(norm);
@@ -26,15 +29,9 @@ export function extractPatentTokens(text) {
   return out;
 }
 
-/**
- * Given a raw token (e.g., "10,859,001" or "10859001" or "11162431B2"),
- * return a prioritized list of slug candidates for Google Patents paths:
- * e.g., ["US10859001B2", "US10859001", "US10859001B1", "US10859001A1"]
- */
 export function slugCandidatesForToken(token) {
-  const cleaned = token.replace(/[\s,.-]+/g, '').toUpperCase();
+  const cleaned = token.replace(/\s+/g, '').toUpperCase();
 
-  // Detect trailing kind code (A1/A2/B1/B2 etc.)
   const kindMatch = cleaned.match(/([0-9]+)([AB][0-9])$/i);
   let base = cleaned;
   let kind = null;
@@ -45,14 +42,9 @@ export function slugCandidatesForToken(token) {
 
   const slugs = [];
   if (kind) slugs.push(`US${base}${kind}`);
-
-  // Plain (Google often redirects)
   slugs.push(`US${base}`);
-
-  // Common kinds to try
   for (const k of ['B2','B1','A1']) {
     if (k !== kind) slugs.push(`US${base}${k}`);
   }
-
   return Array.from(new Set(slugs));
 }

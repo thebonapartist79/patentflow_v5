@@ -1,22 +1,7 @@
   import { useState } from 'react';
 
   export default function App() {
-    const [text, setText] = useState(
-`10961918
-11022046
-11378015
-10914241
-10808626
-11143112
-11512648
-10,859,001
-11,162,431
-10,837,370
-10,823,084
-10,815,901
-11,098,656
-11,525,408`
-    );
+    const [text, setText] = useState('');
     const [busy, setBusy] = useState(false);
     const [msg, setMsg] = useState('');
 
@@ -73,7 +58,10 @@
           rows={14}
           value={text}
           onChange={e => setText(e.target.value)}
-          placeholder="Paste numbers here, one per line or comma/space-separated…"
+          placeholder="11022046
+11378015
+10,859,001
+11,162,431"
           style={{ width: '100%', padding: 12, fontFamily: 'monospace', fontSize: 14 }}
         />
 
