@@ -1,50 +1,92 @@
-// backend/src/util.mjs
+// Known jurisdictions we’ll preserve when present; default to US otherwise
+const KNOWN_JURS = new Set([
+  'US', 'EP', 'WO', 'JP', 'KR', 'CN', 'CA', 'AU',
+  'DE', 'GB', 'ES', 'FR', 'RU', 'IN', 'BR', 'MX', 'TW'
+]);
+
+// Heuristic kind-code fallbacks by jurisdiction (not exhaustive)
+const KIND_FALLBACKS = {
+  US: ['B2', 'B1', 'A1'],
+  EP: ['B1', 'A1'],
+  WO: ['A1'],
+  JP: ['B2', 'A'],
+  CN: ['B', 'A'],
+  KR: ['B1', 'A'],
+  CA: ['C', 'A1'],
+  AU: ['B2', 'A1'],
+  DEFAULT: ['B2', 'B1', 'A1']
+};
 
 export function extractPatentTokens(text) {
   if (!text) return [];
 
-  let cleanedText = String(text).replace(/\r\n?/g, '\n');
+  // Normalize line breaks; replace punctuation separators with spaces
+  const normalized = String(text)
+    .replace(/\r\n?/g, '\n')
+    .replace(/[,\-\/]+/g, ' ')
+    .toUpperCase();
 
-  // remove commas and hyphens INSIDE numbers
-  cleanedText = cleanedText.replace(/[,-]+/g, '');
+  // Split on non-alphanumerics; keep tokens with digits and reasonable length
+  const rawPieces = normalized.split(/[^0-9A-Z]+/g).filter(Boolean);
+  const pieces = rawPieces.filter(p => /[0-9]/.test(p) && p.length >= 5);
 
-  // drop lone "US" tokens (we add it later anyway)
-  cleanedText = cleanedText.replace(/\bUS\b/gi, ' ');
-
-  // now split on whitespace / non-alphanumerics
-  const pieces = cleanedText
-    .split(/[^0-9A-Za-z]+/g)
-    .map(s => s.trim())
-    .filter(Boolean);
-
+  // De-duplicate while preserving order
   const seen = new Set();
   const out = [];
-  for (const t of pieces) {
-    const norm = t.toUpperCase();
-    if (!seen.has(norm)) {
-      seen.add(norm);
-      out.push(norm);
+  for (const p of pieces) {
+    if (!seen.has(p)) {
+      seen.add(p);
+      out.push(p);
     }
   }
   return out;
 }
 
 export function slugCandidatesForToken(token) {
-  const cleaned = token.replace(/\s+/g, '').toUpperCase();
+  // keep only A-Z0-9, normalize case
+  let cleaned = token.replace(/[^0-9A-Z]/gi, '').toUpperCase();
 
-  const kindMatch = cleaned.match(/([0-9]+)([AB][0-9])$/i);
-  let base = cleaned;
+  // Jurisdiction detection (prefix), default to US
+  let jur = 'US';
+  for (const code of KNOWN_JURS) {
+    if (cleaned.startsWith(code)) {
+      jur = code;
+      cleaned = cleaned.slice(code.length);
+      break;
+    }
+  }
+
+  // Extract trailing kind code if present (A1/B2/S1/E1/H1/P1 etc.)
   let kind = null;
+  const kindMatch = cleaned.match(/(A\d|B\d|S\d|E\d|H\d|P\d)$/i);
   if (kindMatch) {
-    base = kindMatch[1];
-    kind = kindMatch[2].toUpperCase();
+    kind = kindMatch[1].toUpperCase();
+    cleaned = cleaned.slice(0, -kind.length);
   }
 
-  const slugs = [];
-  if (kind) slugs.push(`US${base}${kind}`);
-  slugs.push(`US${base}`);
-  for (const k of ['B2','B1','A1']) {
-    if (k !== kind) slugs.push(`US${base}${k}`);
+  // Remaining portion should be digits
+  const digits = cleaned.replace(/[^0-9]/g, '');
+  if (!digits) {
+    // If somehow no digits, fall back to the uppercased token under detected jur
+    return [`${jur}${token.replace(/[^0-9A-Z]/gi, '').toUpperCase()}`];
   }
-  return Array.from(new Set(slugs));
+
+  const fallbacks =
+    (KIND_FALLBACKS[jur] && Array.from(KIND_FALLBACKS[jur])) ||
+    Array.from(KIND_FALLBACKS.DEFAULT);
+
+  const slugs = new Set();
+
+  // If explicit kind present, try exact first
+  if (kind) slugs.add(`${jur}${digits}${kind}`);
+
+  // Base without kind
+  slugs.add(`${jur}${digits}`);
+
+  // Jurisdiction-appropriate fallbacks
+  for (const k of fallbacks) {
+    if (k !== kind) slugs.add(`${jur}${digits}${k}`);
+  }
+
+  return Array.from(slugs);
 }

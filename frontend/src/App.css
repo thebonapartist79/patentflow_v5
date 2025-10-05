@@ -1,13 +1,164 @@
-textarea::placeholder{
-    color: #999;
-    opacity: 1;
+/* ---------- Base + Typography ---------- */
+@supports (font-variation-settings: normal) {
+  :root { --font-sans: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, system-ui, sans-serif; }
+}
+@supports not (font-variation-settings: normal) {
+  :root { --font-sans: "Segoe UI", Roboto, "Helvetica Neue", Arial, system-ui, sans-serif; }
 }
 
+html, body, #root {
+  height: 100%;
+}
+
+html, body {
+  margin: 0;
+  font-family: var(--font-sans);
+  /*font-family: "Georgia", Georgia, monospace;*/
+  line-height: 1.6;
+  color: #1f2937; /* slate-800 */
+}
+
+/* ---------- Background (single, non-repeating gradient) ---------- */
 body {
-/*background: #df9be8;
-background: linear-gradient(90deg, rgba(223, 155, 232, 1) 0%, rgba(178, 209, 235, 1) 100%);*/
-/*background: #ebb2d7;
-background: linear-gradient(90deg, rgba(235, 178, 215, 1) 0%, rgba(154, 212, 237, 1) 100%); */
-background: #ebb2d7;
-background: linear-gradient(to bottom right, rgba(235, 178, 215, 1) 0%, rgba(184, 226, 245, 1) 100%);
+  background: linear-gradient(135deg, #f4d7ec 0%, #d0e8f7 100%);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+/* ---------- Layout Container ---------- */
+.page-wrap {
+  max-width: 880px;
+  margin: 6vh auto 0;
+  padding: 0 16px;
+}
+
+/* ---------- Card ---------- */
+.main-card {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(16, 24, 40, 0.08); /* subtle, professional */
+  padding: 28px;
+  margin: 28px auto;
+}
+
+/* ---------- Header ---------- */
+header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+h1 {
+  margin: 0;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-size: clamp(28px, 3.6vw, 42px);
+  color: #2b1933; /* gray-900 */
+}
+
+.lead {
+  margin: 8px 0 18px;
+  color: #475569; /* slate-600 */
+  text-align: center;
+  font-size: 15.5px;
+}
+
+/* ---------- Textarea ---------- */
+.patent-textarea {
+  width: 100%;
+  min-height: 260px;
+  padding: 12px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  color: #0f172a;               /* slate-900 */
+  background: #ffffff;
+  border: 1px solid #d1d5db;    /* gray-300 */
+  border-radius: 8px;
+  resize: vertical;
+  outline: none;
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.patent-textarea::placeholder {
+  color: #9ca3af;               /* gray-400 */
+  opacity: 1;
+}
+
+.patent-textarea:focus {
+  border-color: #93c5fd;        /* blue-300 */
+  box-shadow: 0 0 0 4px rgba(59,130,246,0.15); /* blue-500 ring */
+}
+
+/* ---------- Button ---------- */
+button {
+  background-color: #2563eb;    /* blue-600 */
+  color: #ffffff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: transform 80ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+button:hover { background-color: #1d4ed8; }          /* blue-700 */
+button:active { transform: translateY(1px); }
+button:disabled {
+  background-color: #93c5fd;                         /* blue-300 */
+  cursor: default;
+  box-shadow: none;
+}
+
+/* ---------- Helper text / status ---------- */
+.status-line {
+  margin-left: 12px;
+  font-style: italic;
+  color: #475569; /* slate-600 */
+}
+
+/* ---------- Details / Summary ---------- */
+details {
+  margin-top: 18px;
+}
+
+summary {
+  cursor: pointer;
+  list-style: none;
+  position: relative;
+  padding-left: 18px;
+  color: #334155; /* slate-700 */
+  font-weight: 600;
+}
+
+summary::marker { display: none; }
+summary::before {
+  content: "▸";
+  position: absolute;
+  left: 0;
+  transition: transform 160ms ease;
+  color: #64748b; /* slate-500 */
+}
+
+details[open] summary::before { transform: rotate(90deg); }
+
+details ul {
+  margin: 10px 0 0 18px;
+  padding: 0;
+}
+
+/* ---------- Footer ---------- */
+footer {
+  text-align: center;
+  margin: 28px 0 36px;
+  color: #6b7280; /* gray-500 */
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 640px) {
+  .main-card { padding: 20px; }
+  .patent-textarea { min-height: 210px; }
 }

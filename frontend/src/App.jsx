@@ -1,90 +1,93 @@
-  import { useState } from 'react';
-  import './App.css';
+import { useState } from 'react';
+import './App.css';
 
-  export default function App() {
-    const [text, setText] = useState('');
-    const [busy, setBusy] = useState(false);
-    const [msg, setMsg] = useState('');
+export default function App() {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
 
-    async function handleDownload() {
-      setBusy(true);
-      setMsg('Resolving and bundling PDFs…');
+  async function handleDownload() {
+    setBusy(true);
+    setMsg('Resolving and bundling PDFs…');
 
-      try {
-        const res = await fetch('/api/bundle', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ text })
-        });
+    try {
+      const res = await fetch('/api/bundle', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          setMsg(`Error: ${err.error || res.statusText}`);
-          setBusy(false);
-          return;
-        }
-
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `patent_bundle_${Date.now()}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        setMsg('Download started.');
-      } catch (e) {
-        setMsg(`Request failed: ${e.message}`);
-      } finally {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setMsg(`Error: ${err.error || res.statusText}`);
         setBusy(false);
+        return;
       }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `patent_bundle_${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setMsg('Download started.');
+    } catch (e) {
+      setMsg(`Request failed: ${e.message}`);
+    } finally {
+      setBusy(false);
     }
+  }
 
-    return (
-      <div style={{ maxWidth: 820, margin: '6vh auto 0', lineHeight: 1.45 }}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <h1 style={{ margin: 0 }}>PatentFlow</h1>
-          <div>
-            <button style={{ marginRight: 8 }}>Subscribe</button>
-            <button>Invalidity Assistant</button>
-          </div>
-        </header>
+  return (
+    <div style={{ maxWidth: 820, margin: '6vh auto 0', lineHeight: 1.45 }}>
+      <header
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginBottom: 8
+        }}
+      >
+        <h1 style={{ margin: 0, textAlign: 'center' }}>Patent Downloader</h1>
+      </header>
 
-        <p style={{ opacity: 0.8, marginTop: 8 }}>
-          Paste patent numbers or publication identifiers (any separators).
-        </p>
+      <p style={{ opacity: 0.8, marginTop: 8 }}>
+        Download OCR'd patent PDFs in bulk. Paste patent numbers or publication identifiers (any separators).
+      </p>
 
-        <textarea
-          rows={14}
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="11022046
+      <textarea
+        rows={14}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder={`11022046
 11378015
 10,859,001
-11,162,431"
-          className = "patent-textarea"
-          style={{ width: '100%', padding: 12, fontFamily: 'monospace', fontSize: 14 }}
-        />
+11,162,431`}
+        className="patent-textarea"
+        style={{ width: '100%', padding: 12, fontFamily: 'monospace', fontSize: 14 }}
+      />
 
-        <div style={{ marginTop: 12, textAlign: 'center' }}>
-          <button onClick={handleDownload} disabled={busy}>
-            {busy ? 'Working…' : 'Download Bundle'}
-          </button>
-          <span style={{ marginLeft: 12, fontStyle: 'italic' }}>{msg}</span>
-        </div>
-
-        <details style={{ marginTop: 20 }}>
-          <summary>What formats are accepted?</summary>
-          <div style={{ marginTop: 10 }}>
-            <ul>
-              <li>Plain numbers: <code>10961918</code></li>
-              <li>With commas: <code>10,859,001</code></li>
-              <li>With kind code: <code>US11162431B2</code>, <code>11162431B2</code></li>
-              <li>Mixed separators: commas, spaces, newlines, hyphens</li>
-            </ul>
-          </div>
-        </details>
+      <div style={{ marginTop: 12, textAlign: 'center' }}>
+        <button onClick={handleDownload} disabled={busy}>
+          {busy ? 'Working…' : 'Download Bundle'}
+        </button>
+        <span style={{ marginLeft: 12, fontStyle: 'italic' }}>{msg}</span>
       </div>
-    );
-  }
+
+      <details style={{ marginTop: 20 }}>
+        <summary>What formats are accepted?</summary>
+        <div style={{ marginTop: 10 }}>
+          <ul>
+            <li>Plain numbers: <code>10961918</code></li>
+            <li>With commas: <code>10,859,001</code></li>
+            <li>With kind code: <code>US11162431B2</code>, <code>11162431B2</code></li>
+            <li>Mixed separators: commas, spaces, newlines, hyphens</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  );
+}
