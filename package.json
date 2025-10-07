@@ -14,5 +14,8 @@
   },
   "devDependencies": {
     "npm-run-all2": "^6.2.1"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
   }
 }
