@@ -7,52 +7,123 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-/** Handle CORS preflight requests */
 export async function onRequestOptions() {
   return new Response(null, { headers: CORS });
 }
 
-/** Normalize patent inputs (array or text block) */
-function parsePatents(input: { patents?: string[]; text?: string }): string[] {
-  if (Array.isArray(input.patents) && input.patents.length > 0) {
-    return input.patents;
+// --- Token parsing → slugs (US/EP/WO… + optional kind code), adapted from your util.mjs ---
+const KNOWN_JURS = new Set(["US","EP","WO","JP","KR","CN","CA","AU","DE","GB","ES","FR","RU","IN","BR","MX","TW"]);
+const KIND_FALLBACKS: Record<string, string[]> = {
+  US: ["B2","B1","A1"],
+  EP: ["B1","A1"],
+  WO: ["A1"],
+  JP: ["B2","A"],
+  CN: ["B","A"],
+  KR: ["B1","A"],
+  CA: ["C","A1"],
+  AU: ["B2","A1"],
+  DEFAULT: ["B2","B1","A1"],
+};
+function extractTokens(raw: string): string[] {
+  if (!raw) return [];
+  const norm = String(raw).replace(/\r\n?/g, "\n").replace(/[,\-\/]+/g, " ").toUpperCase();
+  const pieces = norm.split(/[^0-9A-Z]+/g).filter(Boolean).filter(p => /[0-9]/.test(p) && p.length >= 5);
+  const seen = new Set<string>(); const out: string[] = [];
+  for (const p of pieces) { if (!seen.has(p)) { seen.add(p); out.push(p); } }
+  return out;
+}
+function slugCandidatesForToken(token: string): string[] {
+  let cleaned = token.replace(/[^0-9A-Z]/gi, "").toUpperCase();
+  let jur = "US";
+  for (const code of KNOWN_JURS) {
+    if (cleaned.startsWith(code)) { jur = code; cleaned = cleaned.slice(code.length); break; }
   }
-  if (typeof input.text === "string" && input.text.trim().length > 0) {
-    return input.text
-      .split(/[\s,;]+/g)
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-  return [];
+  let kind: string | null = null;
+  const m = cleaned.match(/(A\d|B\d|S\d|E\d|H\d|P\d)$/i);
+  if (m) { kind = m[1].toUpperCase(); cleaned = cleaned.slice(0, -kind.length); }
+  const digits = cleaned.replace(/[^0-9]/g, "");
+  if (!digits) return [`${jur}${token.replace(/[^0-9A-Z]/gi, "").toUpperCase()}`];
+
+  const fallbacks = (KIND_FALLBACKS[jur] ?? KIND_FALLBACKS.DEFAULT);
+  const slugs = new Set<string>();
+  if (kind) slugs.add(`${jur}${digits}${kind}`);
+  slugs.add(`${jur}${digits}`);
+  for (const k of fallbacks) if (k !== kind) slugs.add(`${jur}${digits}${k}`);
+  return Array.from(slugs);
 }
 
-/** Build a rough public PDF URL for a US patent */
-function pdfUrlForUS(patent: string): string {
-  const digits = patent.replace(/[^0-9]/g, "");
-  return `https://patentimages.storage.googleapis.com/pdfs/US${digits}.pdf`;
+// --- HTML → PDF resolver (Cloudflare fetch; UA + tolerant regexes), adapted from your pdfResolver.mjs ---
+const SANE_UA =
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36";
+
+async function fetchHtmlWithRetry(url: string, timeoutMs: number, tries = 2): Promise<string | null> {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    for (let i = 0; i < tries; i++) {
+      try {
+        const r = await fetch(url, {
+          method: "GET",
+          redirect: "follow",
+          signal: ctrl.signal,
+          headers: {
+            "user-agent": SANE_UA,
+            "accept": "text/html,application/xhtml+xml",
+            "accept-language": "en-US,en;q=0.9",
+          },
+        });
+        if (!r.ok) {
+          if (r.status === 429 || (r.status >= 500 && r.status <= 599)) {
+            await new Promise(res => setTimeout(res, 300 + i * 300));
+            continue;
+          }
+          return null;
+        }
+        return await r.text();
+      } catch (_) {
+        if (i === tries - 1) throw _;
+        await new Promise(res => setTimeout(res, 250 + i * 250));
+      }
+    }
+    return null;
+  } finally {
+    clearTimeout(to);
+  }
 }
 
-/** Main POST handler */
+async function resolvePdfUrl(slug: string, timeoutMs = 25000): Promise<string | null> {
+  const url = `https://patents.google.com/patent/${encodeURIComponent(slug)}/en`;
+  const html = await fetchHtmlWithRetry(url, timeoutMs, 2);
+  if (!html) return null;
+
+  const patterns = [
+    /href\s*=\s*"(https:\/\/patentimages\.storage\.googleapis\.com\/[^"]+\.pdf)"/i,
+    /'(https:\/\/patentimages\.storage\.googleapis\.com\/[^']+\.pdf)'/i,
+    /https:\/\/patentimages\.storage\.googleapis\.com\/[^\s"'<>]+\.pdf/i,
+  ];
+  for (const rx of patterns) {
+    const m = html.match(rx);
+    if (m?.[1]) return m[1].replace(/&amp;/g, "&");
+    if (m?.[0]) return m[0].replace(/&amp;/g, "&");
+  }
+  return null;
+}
+
+// --- Main handler: resolve each token to a signed PDF URL, fetch, and zip ---
+type Body = { patents?: string[]; text?: string };
+
 export async function onRequestPost({ request }: { request: Request }) {
   try {
-    // Parse JSON body
-    const body = (await request.json().catch(() => ({}))) as {
-      patents?: string[];
-      text?: string;
-    };
+    const { patents = [], text = "" } = (await request.json().catch(() => ({}))) as Body;
+    const tokens = Array.isArray(patents) && patents.length ? patents : extractTokens(text);
+    const list = tokens.slice(0, 10); // keep ≤10 to avoid worker timeouts
 
-    const patents = parsePatents(body);
     const zip = new JSZip();
+    zip.file("README.txt", `Generated: ${new Date().toISOString()}\nCount: ${list.length}\n`);
 
-    // Always include a README
-    zip.file(
-      "README.txt",
-      `Patent bundle generated on ${new Date().toISOString()}\nCount: ${patents.length}\n`
-    );
-
-    if (patents.length === 0) {
-      const buf = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
-      return new Response(buf, {
+    if (!list.length) {
+      const empty = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+      return new Response(empty, {
         headers: {
           "Content-Type": "application/zip",
           "Content-Disposition": `attachment; filename="patent_bundle_empty.zip"`,
@@ -61,25 +132,41 @@ export async function onRequestPost({ request }: { request: Request }) {
       });
     }
 
-    // Fetch PDFs (limit batch size to prevent Cloudflare timeouts)
-    for (const p of patents.slice(0, 10)) {
-      try {
-        const url = pdfUrlForUS(p);
-        const res = await fetch(url);
-        if (!res.ok) {
-          zip.file(`${p}.txt`, `Failed to fetch PDF (${res.status} ${res.statusText})\nURL: ${url}`);
-          continue;
-        }
+    for (const token of list) {
+      let pdfUrl: string | null = null;
+      let usedSlug: string | null = null;
 
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        zip.file(`${p}.pdf`, bytes);
-      } catch (err: any) {
-        zip.file(`${p}.txt`, `Error fetching ${p}: ${err?.message || String(err)}\n`);
+      for (const slug of slugCandidatesForToken(token)) {
+        pdfUrl = await resolvePdfUrl(slug, 25000);
+        if (pdfUrl) { usedSlug = slug; break; }
       }
+
+      if (!pdfUrl) {
+        zip.file(`${token}.txt`, `Could not resolve a PDF link from Google Patents HTML for any slug variant.`);
+        continue;
+      }
+
+      // Fetch the real PDF (use UA + accept to avoid 403s)
+      const r = await fetch(pdfUrl, {
+        headers: {
+          "user-agent": SANE_UA,
+          "accept": "application/pdf",
+          "referer": "https://patents.google.com/",
+        },
+        redirect: "follow",
+      });
+
+      if (!r.ok) {
+        zip.file(`${token}.txt`, `Failed to fetch PDF (${r.status} ${r.statusText})\nURL: ${pdfUrl}`);
+        continue;
+      }
+
+      const bytes = new Uint8Array(await r.arrayBuffer());
+      const safeBase = (usedSlug ?? token).replace(/[^0-9A-Z]/gi, "_");
+      zip.file(`${safeBase}.pdf`, bytes);
     }
 
     const out = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
-
     return new Response(out, {
       headers: {
         "Content-Type": "application/zip",
